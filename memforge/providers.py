@@ -105,14 +105,13 @@ class OpenAICompatibleLLM(BaseLLMClient):
 
     def __init__(self, config: ProviderConfig):
         from openai import OpenAI
-        kwargs = {}
+        kwargs = {"timeout": 120.0}
         api_key = config.resolve_api_key()
         if api_key:
             kwargs["api_key"] = api_key
         base_url = config.resolve_base_url()
         if base_url:
             kwargs["base_url"] = base_url
-        # Ollama doesn't need an API key, but OpenAI SDK requires one
         if config.provider == "ollama" and "api_key" not in kwargs:
             kwargs["api_key"] = "ollama"
         self.client = OpenAI(**kwargs)
@@ -125,7 +124,13 @@ class OpenAICompatibleLLM(BaseLLMClient):
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        return response.choices[0].message.content.strip()
+        msg = response.choices[0].message
+        # Handle reasoning models: content may be None, text in reasoning_content
+        content = msg.content
+        if content is None:
+            # Try OpenRouter reasoning format
+            content = getattr(msg, "reasoning_content", None) or ""
+        return content.strip()
 
 
 class AnthropicLLM(BaseLLMClient):

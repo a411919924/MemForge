@@ -119,7 +119,7 @@ def llm_judge_score(
         response = judge_llm.chat(
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
-            max_tokens=50,
+            max_tokens=4096,
         )
         # Parse verdict
         response = response.strip()
