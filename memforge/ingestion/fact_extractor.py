@@ -115,7 +115,7 @@ class FactExtractor:
             content = self.llm.chat(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_tokens=16384,
+                max_tokens=32768,
             )
             facts_data = self._parse_response(content)
         except Exception as e:
@@ -175,7 +175,7 @@ class FactExtractor:
 
     @staticmethod
     def _parse_response(content: str) -> list[dict]:
-        """Parse LLM JSON response, handling common quirks."""
+        """Parse LLM JSON response, handling truncation and common quirks."""
         # Strip markdown code fences if present
         if content.startswith("```"):
             content = content.split("\n", 1)[1]
@@ -183,7 +183,12 @@ class FactExtractor:
                 content = content.rsplit("```", 1)[0]
         content = content.strip()
 
-        parsed = json.loads(content)
+        # Try direct parse first
+        try:
+            parsed = json.loads(content)
+        except json.JSONDecodeError:
+            # Truncated JSON — try to salvage by finding the last complete object
+            parsed = FactExtractor._repair_truncated_json(content)
 
         # Handle both {"facts": [...]} and [...] formats
         if isinstance(parsed, dict):
@@ -193,4 +198,29 @@ class FactExtractor:
             return []
         elif isinstance(parsed, list):
             return parsed
+        return []
+
+    @staticmethod
+    def _repair_truncated_json(content: str) -> list:
+        """Attempt to repair truncated JSON array by finding last complete object."""
+        # Find the last complete "}" and close the array
+        last_brace = content.rfind("}")
+        if last_brace == -1:
+            return []
+        truncated = content[:last_brace + 1]
+        # Close any open array
+        if not truncated.rstrip().endswith("]"):
+            truncated = truncated.rstrip().rstrip(",") + "]"
+        # Ensure it starts with [
+        arr_start = truncated.find("[")
+        if arr_start == -1:
+            return []
+        truncated = truncated[arr_start:]
+        try:
+            parsed = json.loads(truncated)
+            if isinstance(parsed, list):
+                logger.warning(f"Repaired truncated JSON: salvaged {len(parsed)} facts")
+                return parsed
+        except json.JSONDecodeError:
+            pass
         return []
