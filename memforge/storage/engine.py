@@ -23,7 +23,7 @@ class StorageEngine:
         self._vec_enabled = False
 
     def connect(self) -> None:
-        self._conn = sqlite3.connect(str(self.db_path))
+        self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         # Try loading sqlite-vec extension
         try:

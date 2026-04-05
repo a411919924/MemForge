@@ -176,9 +176,15 @@ def run_memforge(
         def answer_one_qa(qa_idx_qa):
             qa_idx, qa = qa_idx_qa
             question = qa["question"]
-            ground_truth = qa["answer"]
+            ground_truth = qa.get("answer")
             category = qa.get("category", 0)
             cat_name = CATEGORY_NAMES.get(category, f"unknown_{category}")
+
+            # Handle None answers (adversarial/unanswerable) and int answers
+            if ground_truth is None:
+                ground_truth = "unanswerable"
+            else:
+                ground_truth = str(ground_truth)
 
             # Retrieve
             t0 = time.time()
