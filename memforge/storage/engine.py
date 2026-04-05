@@ -125,9 +125,8 @@ class StorageEngine:
             """SELECT v.id, v.distance, f.*
             FROM facts_vec v
             JOIN atomic_facts f ON v.id = f.id
-            WHERE v.embedding MATCH ?
-            ORDER BY v.distance
-            LIMIT ?""",
+            WHERE v.embedding MATCH ? AND k = ?
+            ORDER BY v.distance""",
             (vec_bytes, limit),
         ).fetchall()
         results = []

@@ -140,11 +140,15 @@ class FactExtractor:
 
         return facts
 
-    def generate_l0(self, facts: list[AtomicFact]) -> list[AtomicFact]:
-        """Generate L0 abstracts for a batch of facts."""
-        for fact in facts:
-            if fact.l0_abstract:
-                continue
+    def generate_l0(self, facts: list[AtomicFact], max_workers: int = 8) -> list[AtomicFact]:
+        """Generate L0 abstracts for a batch of facts (parallelized)."""
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        pending = [f for f in facts if not f.l0_abstract]
+        if not pending:
+            return facts
+
+        def _gen_one(fact: AtomicFact) -> None:
             try:
                 fact.l0_abstract = self.llm.chat(
                     messages=[{"role": "user", "content": L0_PROMPT.format(content=fact.content)}],
@@ -153,8 +157,13 @@ class FactExtractor:
                 )
             except Exception as e:
                 logger.warning(f"L0 generation failed for fact {fact.id}: {e}")
-                # Fallback: truncate content
                 fact.l0_abstract = fact.content[:80] + ("..." if len(fact.content) > 80 else "")
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_gen_one, f) for f in pending]
+            for future in as_completed(futures):
+                future.result()  # propagate exceptions
+
         return facts
 
     @staticmethod
