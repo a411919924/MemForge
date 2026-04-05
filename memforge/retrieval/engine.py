@@ -25,12 +25,12 @@ class IntentType:
 # Intent-adaptive channel weights
 INTENT_WEIGHTS = {
     #                    semantic  bm25   graph  temporal
-    IntentType.FACTUAL:   [0.50,  0.30,  0.10,  0.10],
-    IntentType.TEMPORAL:  [0.20,  0.20,  0.10,  0.50],
-    IntentType.ENTITY:    [0.30,  0.10,  0.50,  0.10],
-    IntentType.MULTI_HOP: [0.30,  0.10,  0.40,  0.20],
-    IntentType.OPINION:   [0.50,  0.30,  0.20,  0.00],
-    IntentType.VAGUE:     [0.40,  0.20,  0.20,  0.20],
+    IntentType.FACTUAL:   [0.55,  0.35,  0.05,  0.05],
+    IntentType.TEMPORAL:  [0.30,  0.25,  0.05,  0.40],
+    IntentType.ENTITY:    [0.40,  0.20,  0.30,  0.10],
+    IntentType.MULTI_HOP: [0.35,  0.15,  0.35,  0.15],
+    IntentType.OPINION:   [0.55,  0.35,  0.10,  0.00],
+    IntentType.VAGUE:     [0.45,  0.30,  0.15,  0.10],
 }
 
 
@@ -121,18 +121,18 @@ class RetrievalEngine:
         if any(re.search(p, q) for p in opinion_patterns):
             return IntentType.OPINION
 
-        # Entity signals (capitalized words as crude NER)
-        capitalized = re.findall(r"\b[A-Z][a-z]+\b", query)
-        if len(capitalized) >= 2:
-            return IntentType.ENTITY
-
-        # Factual signals
+        # Factual signals (check BEFORE entity — "What did X do?" is factual, not entity)
         factual_patterns = [
             r"\bwhat\b", r"\bwho\b", r"\bwhere\b", r"\bhow\b",
             r"\bwhich\b", r"\btell me\b",
         ]
         if any(re.search(p, q) for p in factual_patterns):
             return IntentType.FACTUAL
+
+        # Entity signals (only when no question words present)
+        capitalized = re.findall(r"\b[A-Z][a-z]+\b", query)
+        if len(capitalized) >= 2:
+            return IntentType.ENTITY
 
         return IntentType.VAGUE
 

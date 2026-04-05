@@ -296,8 +296,20 @@ class StorageEngine:
 
     @staticmethod
     def _sanitize_fts_query(query: str) -> str:
-        """Sanitize query for FTS5 — remove reserved words and special chars."""
+        """Sanitize query for FTS5 — use OR logic with prefix matching."""
+        import re
         reserved = {"and", "or", "not", "near", "select", "from", "where", "order", "by"}
+        stop_words = {"a", "an", "the", "is", "was", "were", "are", "be", "been",
+                      "do", "did", "does", "has", "had", "have", "will", "would",
+                      "could", "should", "may", "might", "what", "when", "who",
+                      "how", "which", "that", "this", "to", "of", "in", "for",
+                      "on", "at", "it", "its", "i", "you", "he", "she", "we", "they"}
         words = query.split()
-        cleaned = [w for w in words if w.lower() not in reserved and w.isalnum()]
-        return " ".join(cleaned)
+        cleaned = []
+        for w in words:
+            w = re.sub(r"[^\w]", "", w)  # strip punctuation
+            if w and w.lower() not in reserved and w.lower() not in stop_words:
+                cleaned.append(f'"{w}"*')  # prefix match with quoting
+        if not cleaned:
+            return ""
+        return " OR ".join(cleaned)
