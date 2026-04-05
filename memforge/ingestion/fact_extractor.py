@@ -150,6 +150,7 @@ class FactExtractor:
     def generate_l0(self, facts: list[AtomicFact], max_workers: int = 8) -> list[AtomicFact]:
         """Generate L0 abstracts for a batch of facts (parallelized)."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        from tqdm import tqdm
 
         pending = [f for f in facts if not f.l0_abstract]
         if not pending:
@@ -168,8 +169,10 @@ class FactExtractor:
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = [executor.submit(_gen_one, f) for f in pending]
-            for future in as_completed(futures):
-                future.result()  # propagate exceptions
+            with tqdm(total=len(pending), desc="Generating L0", unit="fact") as pbar:
+                for future in as_completed(futures):
+                    future.result()
+                    pbar.update(1)
 
         return facts
 

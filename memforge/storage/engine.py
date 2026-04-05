@@ -16,11 +16,12 @@ _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 class StorageEngine:
     """Single-file SQLite storage with vector + FTS5 indexes."""
 
-    def __init__(self, db_path: str = "~/.memforge/memforge.db"):
+    def __init__(self, db_path: str = "~/.memforge/memforge.db", embedding_dim: int = 1024):
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
         self._vec_enabled = False
+        self._embedding_dim = embedding_dim
 
     def connect(self) -> None:
         self._conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
@@ -43,7 +44,7 @@ class StorageEngine:
             try:
                 self._conn.execute(
                     "CREATE VIRTUAL TABLE IF NOT EXISTS facts_vec "
-                    "USING vec0(id TEXT PRIMARY KEY, embedding float[768] distance_metric=cosine)"
+                    f"USING vec0(id TEXT PRIMARY KEY, embedding float[{self._embedding_dim}] distance_metric=cosine)"
                 )
                 self._conn.commit()
             except Exception:

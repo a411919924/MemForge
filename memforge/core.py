@@ -115,7 +115,7 @@ class MemForge:
         self._config = yaml_config
 
         # Storage
-        self.storage = StorageEngine(db_path)
+        self.storage = StorageEngine(db_path, embedding_dim=embedding_dim)
         self.storage.connect()
 
         # Ingestion params from yaml config

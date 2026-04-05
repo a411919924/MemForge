@@ -73,12 +73,16 @@ class IngestionPipeline:
             )
             return i, facts
 
+        from tqdm import tqdm
+
         all_facts: list[AtomicFact] = []
         with ThreadPoolExecutor(max_workers=min(8, len(windows))) as executor:
             futures = [executor.submit(_extract_window, i, w) for i, w in enumerate(windows)]
             window_results: list[tuple[int, list[AtomicFact]]] = []
-            for future in as_completed(futures):
-                window_results.append(future.result())
+            with tqdm(total=len(windows), desc="Extracting facts", unit="win") as pbar:
+                for future in as_completed(futures):
+                    window_results.append(future.result())
+                    pbar.update(1)
 
         # Merge in original window order
         window_results.sort(key=lambda x: x[0])

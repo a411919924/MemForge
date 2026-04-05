@@ -26,6 +26,8 @@ import time
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 LOCOMO_PATH = Path(__file__).resolve().parents[2].parent / "locomo" / "data" / "locomo10.json"
