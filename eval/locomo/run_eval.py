@@ -202,17 +202,19 @@ def run_memforge(
     from memforge.providers import BaseLLMClient, create_llm, get_preset
     from memforge.config import load_config
 
-    # Build QA + judge LLM
+    # Load config to get per-role LLM settings
     if preset:
-        qa_llm: BaseLLMClient = create_llm(get_preset(preset)["llm"])
-    elif config_path:
-        cfg = load_config(config_path)
-        qa_llm = create_llm(cfg.llm)
+        preset_configs = get_preset(preset)
+        qa_llm: BaseLLMClient = create_llm(preset_configs["llm"])
+        judge_llm: BaseLLMClient = qa_llm
     else:
-        cfg = load_config()
-        qa_llm = create_llm(cfg.llm)
-
-    judge_llm = qa_llm  # Use same LLM as judge
+        cfg = load_config(config_path)
+        # QA LLM: qa_llm > ingestion_llm
+        qa_cfg = cfg.qa_llm or cfg.ingestion_llm
+        qa_llm = create_llm(qa_cfg)
+        # Judge LLM: judge_llm > qa_llm > ingestion_llm
+        judge_cfg = cfg.judge_llm or qa_cfg
+        judge_llm = create_llm(judge_cfg) if judge_cfg != qa_cfg else qa_llm
 
     use_f1 = metric in ("token_f1", "both")
     use_judge = metric in ("llm_judge", "both")

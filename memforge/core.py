@@ -90,19 +90,20 @@ class MemForge:
             embedding_dim = yaml_config.embedding_dim if yaml_config else 768
 
         # Resolve provider configs (explicit > preset > yaml > defaults)
+        ingestion_llm_config = llm_config
         if preset:
             preset_configs = get_preset(preset)
-            llm_config = llm_config or preset_configs["llm"]
+            ingestion_llm_config = ingestion_llm_config or preset_configs["llm"]
             embedding_config = embedding_config or preset_configs["embedding"]
         elif yaml_config:
-            llm_config = llm_config or yaml_config.llm
+            ingestion_llm_config = ingestion_llm_config or yaml_config.ingestion_llm
             embedding_config = embedding_config or yaml_config.embedding
 
         # Build clients
         if llm is None:
-            if llm_config is None:
-                llm_config = ProviderConfig(provider="openai", model="gpt-4.1-mini")
-            llm = create_llm(llm_config)
+            if ingestion_llm_config is None:
+                ingestion_llm_config = ProviderConfig(provider="openai", model="gpt-4.1-mini")
+            llm = create_llm(ingestion_llm_config)
 
         if embedding is None:
             if embedding_config is None:
@@ -111,6 +112,7 @@ class MemForge:
 
         self._llm = llm
         self._embedding = embedding
+        self._config = yaml_config
 
         # Storage
         self.storage = StorageEngine(db_path)

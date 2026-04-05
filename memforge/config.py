@@ -64,12 +64,19 @@ class RetrievalConfig:
 @dataclass
 class MemForgeConfig:
     """Full MemForge configuration."""
-    llm: ProviderConfig = field(default_factory=lambda: ProviderConfig())
+    ingestion_llm: ProviderConfig = field(default_factory=lambda: ProviderConfig())
+    qa_llm: ProviderConfig | None = None       # Falls back to ingestion_llm
+    judge_llm: ProviderConfig | None = None     # Falls back to qa_llm
     embedding: ProviderConfig = field(default_factory=lambda: ProviderConfig())
     embedding_dim: int = 768
     storage_path: str = "~/.memforge/memforge.db"
     ingestion: IngestionConfig = field(default_factory=IngestionConfig)
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
+
+    # Legacy compat: single "llm" maps to ingestion_llm
+    @property
+    def llm(self) -> ProviderConfig:
+        return self.ingestion_llm
 
 
 def _dict_to_provider_config(d: dict[str, Any]) -> ProviderConfig:
@@ -124,9 +131,17 @@ def _parse_raw_config(raw: dict[str, Any]) -> MemForgeConfig:
     """Parse raw YAML dict into MemForgeConfig."""
     config = MemForgeConfig()
 
-    # LLM config
-    if "llm" in raw:
-        config.llm = _dict_to_provider_config(raw["llm"])
+    # LLM configs (support both new multi-role and legacy single "llm")
+    if "ingestion_llm" in raw:
+        config.ingestion_llm = _dict_to_provider_config(raw["ingestion_llm"])
+    elif "llm" in raw:
+        config.ingestion_llm = _dict_to_provider_config(raw["llm"])
+
+    if "qa_llm" in raw:
+        config.qa_llm = _dict_to_provider_config(raw["qa_llm"])
+
+    if "judge_llm" in raw:
+        config.judge_llm = _dict_to_provider_config(raw["judge_llm"])
 
     # Embedding config
     if "embedding" in raw:
