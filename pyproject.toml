@@ -1,0 +1,38 @@
+[project]
+name = "memforge"
+version = "0.1.0"
+description = "Forge high-quality atomic memories from raw conversations. Ingestion-first memory layer for AI agents."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.60.0",
+    "sqlite-vec>=0.1.6",
+    "numpy>=1.26.0",
+]
+
+[project.optional-dependencies]
+eval = [
+    "datasets>=3.0.0",
+    "rouge-score>=0.1.2",
+    "tqdm>=4.66.0",
+]
+local = [
+    "onnxruntime>=1.19.0",
+    "sentence-transformers>=3.0.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
