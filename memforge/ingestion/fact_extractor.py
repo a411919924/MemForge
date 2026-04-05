@@ -18,7 +18,7 @@ from memforge.providers import BaseLLMClient
 logger = logging.getLogger(__name__)
 
 EXTRACTION_PROMPT = """\
-You are a memory extraction engine. Given a conversation segment, extract ALL atomic facts.
+You are a memory extraction engine. Given a conversation segment, extract ALL atomic facts — both explicit and implied.
 
 ## Rules
 1. Each fact MUST be completely self-contained — no pronouns, no relative time, no ambiguity.
@@ -26,13 +26,20 @@ You are a memory extraction engine. Given a conversation segment, extract ALL at
 3. Normalize ALL temporal expressions to ISO 8601 absolute dates. Use the observation date as anchor.
 4. Classify each fact into exactly one type:
    - episodic: specific events ("Alice met Bob at Starbucks on 2026-04-05")
-   - semantic: general knowledge ("Python uses indentation for blocks")
+   - semantic: general knowledge / personal attributes ("Alice's home country is Sweden")
    - opinion: preferences/feelings ("Alice prefers dark mode")
    - temporal: time-bound scheduled items ("The team meeting is at 2026-04-10T14:00:00")
    - procedural: how-to knowledge ("To deploy, run `make deploy` from project root")
 5. Extract entities, temporal info, location, and topic for each fact.
 6. Do NOT extract trivial conversational filler ("okay", "thanks", "got it").
 7. If a previous fact is updated or contradicted, extract the NEW version only.
+8. CRITICAL — Extract IMPLIED facts by combining context clues:
+   - If someone mentions "my grandmother in Sweden" and "I moved from my home country", infer "X's home country is Sweden"
+   - If someone says "as a single parent", infer "X is single" and "X is a parent"
+   - If someone discusses "my transition" in LGBTQ context, infer "X is transgender"
+   - Extract personal attributes: nationality, relationship status, occupation, hobbies, age, identity
+   - Extract each person's activities, hobbies, interests as separate facts
+9. Be EXHAUSTIVE — extract MORE facts rather than fewer. It's better to have redundant facts than to miss important ones.
 
 ## Observation Date
 {observation_date}
