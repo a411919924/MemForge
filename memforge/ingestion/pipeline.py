@@ -61,15 +61,28 @@ class IngestionPipeline:
         windows = self._segment_windows(messages)
         logger.info(f"Split into {len(windows)} windows")
 
-        # Step 2: Extract facts from each window
-        all_facts: list[AtomicFact] = []
-        for i, window in enumerate(windows):
+        # Step 2: Extract facts from each window (parallelized)
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _extract_window(i: int, window: list[Message]) -> tuple[int, list[AtomicFact]]:
             logger.info(f"Extracting facts from window {i+1}/{len(windows)}")
             facts = self.extractor.extract(
                 messages=window,
-                prev_facts=all_facts[-20:] if all_facts else None,
+                prev_facts=None,  # No cross-window dedup — handled by dedup stage
                 observation_date=observation_date,
             )
+            return i, facts
+
+        all_facts: list[AtomicFact] = []
+        with ThreadPoolExecutor(max_workers=min(8, len(windows))) as executor:
+            futures = [executor.submit(_extract_window, i, w) for i, w in enumerate(windows)]
+            window_results: list[tuple[int, list[AtomicFact]]] = []
+            for future in as_completed(futures):
+                window_results.append(future.result())
+
+        # Merge in original window order
+        window_results.sort(key=lambda x: x[0])
+        for _, facts in window_results:
             all_facts.extend(facts)
 
         logger.info(f"Extracted {len(all_facts)} raw facts")
