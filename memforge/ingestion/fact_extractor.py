@@ -108,7 +108,7 @@ class FactExtractor:
             content = self.llm.chat(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_tokens=4096,
+                max_tokens=16384,
             )
             facts_data = self._parse_response(content)
         except Exception as e:

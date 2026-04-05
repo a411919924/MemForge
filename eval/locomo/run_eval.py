@@ -209,7 +209,7 @@ def run_memforge(
             prediction = qa_llm.chat(
                 messages=[{"role": "user", "content": answer_prompt}],
                 temperature=0.0,
-                max_tokens=100,
+                max_tokens=512,
             )
             f1 = compute_f1(prediction, ground_truth)
 

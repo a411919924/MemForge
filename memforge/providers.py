@@ -95,7 +95,7 @@ class BaseLLMClient(ABC):
     """Abstract LLM client."""
 
     @abstractmethod
-    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 4096) -> str:
+    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 16384) -> str:
         """Send chat completion request, return response text."""
         ...
 
@@ -118,7 +118,7 @@ class OpenAICompatibleLLM(BaseLLMClient):
         self.client = OpenAI(**kwargs)
         self.model = config.model
 
-    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 4096) -> str:
+    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 16384) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -140,7 +140,7 @@ class AnthropicLLM(BaseLLMClient):
         self.client = Anthropic(api_key=api_key) if api_key else Anthropic()
         self.model = config.model
 
-    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 4096) -> str:
+    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 16384) -> str:
         # Anthropic API separates system from messages
         system = None
         chat_messages = []
@@ -169,7 +169,7 @@ class GoogleLLM(BaseLLMClient):
         self.client = genai.Client(api_key=api_key) if api_key else genai.Client()
         self.model = config.model
 
-    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 4096) -> str:
+    def chat(self, messages: list[dict], temperature: float = 0.1, max_tokens: int = 16384) -> str:
         from google.genai import types
         # Convert OpenAI message format to Gemini
         contents = []
