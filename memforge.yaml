@@ -1,0 +1,38 @@
+# MemForge Configuration
+# Docs: see memforge/config.py for all options
+
+# ── LLM Provider ─────────────────────────────────────────────
+# Used for fact extraction, L0 summary generation, and QA
+llm:
+  provider: openrouter                          # openai | anthropic | google | openrouter | deepseek | ollama | custom
+  model: anthropic/claude-sonnet-4-6            # any model your provider supports
+  api_key_env: OPENROUTER_API_KEY               # env var name (never put raw keys here)
+  # base_url: https://openrouter.ai/api/v1     # auto-resolved from provider
+  # api_key: sk-...                             # NOT recommended, use api_key_env
+
+# ── Embedding Provider ───────────────────────────────────────
+# Used for vector search (semantic retrieval channel)
+embedding:
+  provider: openrouter
+  model: openai/text-embedding-3-small
+  api_key_env: OPENROUTER_API_KEY
+  dimensions: 768
+
+# ── Storage ──────────────────────────────────────────────���───
+storage:
+  path: ~/.memforge/memforge.db
+
+# ── Ingestion Pipeline ───────────────────────────────────────
+ingestion:
+  window_size: 40           # messages per sliding window
+  window_overlap: 2         # overlap between windows
+  dedup_threshold: 0.85     # semantic similarity threshold for dedup
+
+# ── Retrieval Engine ─────────────────────────────────────────
+retrieval:
+  top_k: 10
+  channels:
+    - semantic              # vector cosine similarity
+    - bm25                  # FTS5 full-text search
+    - graph                 # entity graph traversal
+    - temporal              # time-based search

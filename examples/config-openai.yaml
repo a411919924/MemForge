@@ -1,0 +1,11 @@
+# OpenAI configuration
+llm:
+  provider: openai
+  model: gpt-4.1-mini
+  api_key_env: OPENAI_API_KEY
+
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+  api_key_env: OPENAI_API_KEY
+  dimensions: 768

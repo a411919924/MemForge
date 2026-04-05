@@ -77,14 +77,29 @@ def compute_f1(prediction: str, ground_truth: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
-def run_memforge(dataset: list[dict], output_dir: Path, preset: str) -> dict:
+def run_memforge(
+    dataset: list[dict],
+    output_dir: Path,
+    preset: str | None = None,
+    config_path: str | None = None,
+) -> dict:
     """MemForge: Ingest conversations, then answer from memory."""
     from memforge.core import MemForge
     from memforge.providers import BaseLLMClient, create_llm, get_preset
 
-    # Build QA answerer from same preset
-    preset_configs = get_preset(preset)
-    qa_llm: BaseLLMClient = create_llm(preset_configs["llm"])
+    # Build QA answerer from same config
+    if config_path:
+        from memforge.config import load_config
+        cfg = load_config(config_path)
+        qa_llm: BaseLLMClient = create_llm(cfg.llm)
+    elif preset:
+        preset_configs = get_preset(preset)
+        qa_llm = create_llm(preset_configs["llm"])
+    else:
+        # Auto-discover config
+        from memforge.config import load_config
+        cfg = load_config()
+        qa_llm = create_llm(cfg.llm)
 
     results = []
     total_f1 = 0.0
@@ -96,7 +111,7 @@ def run_memforge(dataset: list[dict], output_dir: Path, preset: str) -> dict:
 
         # Create fresh MemForge instance per conversation
         db_path = output_dir / f"conv_{conv_idx}.db"
-        mf = MemForge(db_path=str(db_path), preset=preset)
+        mf = MemForge(db_path=str(db_path), preset=preset, config_path=config_path)
 
         # Step 1: Ingest conversation
         messages = parse_conversation(conversation["conversation"])
@@ -185,9 +200,13 @@ Be concise and specific.
 def main():
     parser = argparse.ArgumentParser(description="LoCoMo Benchmark Evaluation for MemForge")
     parser.add_argument(
-        "--preset", default="openai",
+        "--config", default=None, type=str,
+        help="Path to memforge.yaml config file (auto-discovered if not set)",
+    )
+    parser.add_argument(
+        "--preset", default=None,
         choices=["openai", "anthropic", "google", "openrouter", "deepseek", "ollama"],
-        help="Provider preset (default: openai)",
+        help="Provider preset (overrides config file)",
     )
     parser.add_argument("--output-dir", default="eval/locomo/results", type=str)
     parser.add_argument(
@@ -204,8 +223,9 @@ def main():
         dataset = dataset[:args.max_conversations]
     logger.info(f"Loaded {len(dataset)} conversations")
 
-    logger.info(f"=== Running MemForge (preset={args.preset}) ===")
-    run_memforge(dataset, output_dir, args.preset)
+    source = f"preset={args.preset}" if args.preset else f"config={args.config or 'auto'}"
+    logger.info(f"=== Running MemForge ({source}) ===")
+    run_memforge(dataset, output_dir, preset=args.preset, config_path=args.config)
 
 
 if __name__ == "__main__":

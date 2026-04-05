@@ -1,0 +1,11 @@
+# Google Gemini configuration
+llm:
+  provider: google
+  model: gemini-2.5-flash
+  api_key_env: GOOGLE_API_KEY
+
+embedding:
+  provider: google
+  model: gemini-embedding-001
+  api_key_env: GOOGLE_API_KEY
+  dimensions: 768

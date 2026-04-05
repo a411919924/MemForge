@@ -1,13 +1,14 @@
 """MemForge: Main entry point.
 
 Usage:
-    # With preset (easiest)
-    mf = MemForge(preset="openrouter")
-    mf = MemForge(preset="anthropic")
-    mf = MemForge(preset="google")
-    mf = MemForge(preset="ollama")
+    # From YAML config (recommended)
+    mf = MemForge()                            # auto-finds ./memforge.yaml or ~/.memforge/config.yaml
+    mf = MemForge(config_path="my-config.yaml") # explicit path
 
-    # With explicit config
+    # With preset
+    mf = MemForge(preset="openrouter")
+
+    # With explicit provider configs
     from memforge.providers import ProviderConfig
     mf = MemForge(
         llm_config=ProviderConfig(provider="openrouter", model="anthropic/claude-sonnet-4-6"),
@@ -22,6 +23,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from memforge.ingestion.fact_extractor import FactExtractor
 from memforge.ingestion.pipeline import IngestionPipeline
@@ -41,27 +43,60 @@ logger = logging.getLogger(__name__)
 
 
 class MemForge:
-    """High-level API for MemForge memory system."""
+    """High-level API for MemForge memory system.
+
+    Config resolution order (first match wins):
+    1. Pre-built clients (llm=, embedding=)
+    2. Explicit provider configs (llm_config=, embedding_config=)
+    3. Preset name (preset=)
+    4. YAML config file (config_path= or auto-discovered)
+    """
 
     def __init__(
         self,
-        db_path: str = "~/.memforge/memforge.db",
-        # Option 1: Use a preset
+        db_path: str | None = None,
+        # Option 1: YAML config file
+        config_path: str | None = None,
+        # Option 2: Use a preset
         preset: str | None = None,
-        # Option 2: Explicit provider configs
+        # Option 3: Explicit provider configs
         llm_config: ProviderConfig | None = None,
         embedding_config: ProviderConfig | None = None,
-        # Option 3: Pre-built clients (for advanced use / testing)
+        # Option 4: Pre-built clients (for advanced use / testing)
         llm: BaseLLMClient | None = None,
         embedding: BaseEmbeddingClient | None = None,
         # Embedding dimensions (for vector index)
-        embedding_dim: int = 768,
+        embedding_dim: int | None = None,
     ):
-        # Resolve provider configs
+        # Try loading YAML config as base (lowest priority, overridden by explicit args)
+        yaml_config = None
+        if config_path or (llm_config is None and preset is None and llm is None):
+            try:
+                from memforge.config import load_config
+                yaml_config = load_config(config_path)
+            except FileNotFoundError:
+                if config_path:
+                    raise  # Explicit path must exist
+                # Auto-discovery failed, that's fine
+            except ImportError:
+                pass  # pyyaml not installed
+
+        # Resolve db_path
+        if db_path is None:
+            db_path = yaml_config.storage_path if yaml_config else "~/.memforge/memforge.db"
+
+        # Resolve embedding_dim
+        if embedding_dim is None:
+            embedding_dim = yaml_config.embedding_dim if yaml_config else 768
+
+        # Resolve provider configs (explicit > preset > yaml > defaults)
         if preset:
             preset_configs = get_preset(preset)
             llm_config = llm_config or preset_configs["llm"]
             embedding_config = embedding_config or preset_configs["embedding"]
+        elif yaml_config:
+            llm_config = llm_config or yaml_config.llm
+            embedding_config = embedding_config or yaml_config.embedding
 
         # Build clients
         if llm is None:
@@ -81,12 +116,20 @@ class MemForge:
         self.storage = StorageEngine(db_path)
         self.storage.connect()
 
+        # Ingestion params from yaml config
+        ing_kwargs = {}
+        if yaml_config:
+            ing_kwargs["window_size"] = yaml_config.ingestion.window_size
+            ing_kwargs["window_overlap"] = yaml_config.ingestion.window_overlap
+            ing_kwargs["dedup_threshold"] = yaml_config.ingestion.dedup_threshold
+
         # Ingestion
         extractor = FactExtractor(llm=llm)
         self.ingestion = IngestionPipeline(
             storage=self.storage,
             extractor=extractor,
             embedding=embedding,
+            **ing_kwargs,
         )
 
         # Retrieval

@@ -1,0 +1,10 @@
+# Fully local configuration (zero cloud, zero API keys)
+# Requires: ollama pull qwen3:1.7b && ollama pull nomic-embed-text
+llm:
+  provider: ollama
+  model: qwen3:1.7b
+
+embedding:
+  provider: ollama
+  model: nomic-embed-text
+  dimensions: 768
