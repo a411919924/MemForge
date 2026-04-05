@@ -41,12 +41,8 @@ class RetrievalEngine:
         # Channel 2: BM25 full-text search
         bm25_results = self.storage.search_bm25(query, limit=top_k)
 
-        # RRF fusion
-        fused = self._weighted_rrf(
-            channels=[semantic_results, bm25_results],
-            weights=[self.semantic_weight, self.bm25_weight],
-            k=60,
-        )
+        # Direct score fusion (ReMe-style)
+        fused = self._score_fusion(semantic_results, bm25_results)
 
         results = fused[:top_k]
         if format == "l0":
@@ -62,26 +58,25 @@ class RetrievalEngine:
             logger.error(f"Query embedding failed: {e}")
             return None
 
-    @staticmethod
-    def _weighted_rrf(
-        channels: list[list[ScoredFact]],
-        weights: list[float],
-        k: int = 60,
+    def _score_fusion(
+        self,
+        semantic_results: list[ScoredFact],
+        bm25_results: list[ScoredFact],
     ) -> list[ScoredFact]:
-        """Weighted Reciprocal Rank Fusion."""
+        """Direct score fusion: score = w_sem * sim + w_bm25 * bm25_score."""
         scores: dict[str, float] = defaultdict(float)
         facts: dict[str, ScoredFact] = {}
-        channel_names = ["semantic", "bm25"]
 
-        for channel_idx, (channel_results, weight) in enumerate(zip(channels, weights)):
-            if weight == 0:
-                continue
-            for rank, scored_fact in enumerate(channel_results):
-                fid = scored_fact.fact.id
-                rrf_score = weight / (k + rank + 1)
-                scores[fid] += rrf_score
-                if fid not in facts:
-                    facts[fid] = scored_fact
+        for sf in semantic_results:
+            fid = sf.fact.id
+            scores[fid] += self.semantic_weight * sf.score
+            facts[fid] = sf
+
+        for sf in bm25_results:
+            fid = sf.fact.id
+            scores[fid] += self.bm25_weight * sf.score
+            if fid not in facts:
+                facts[fid] = sf
 
         ranked = sorted(scores.items(), key=lambda x: -x[1])
         results = []
