@@ -316,14 +316,17 @@ def run_memforge(
             return result
 
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        from tqdm import tqdm
         qa_results_for_conv = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(answer_one_qa, qa_tuple): qa_tuple[0] for qa_tuple in eval_qas}
-            for future in as_completed(futures):
-                try:
-                    qa_results_for_conv.append(future.result())
-                except Exception as e:
-                    logger.error(f"  QA failed: {e}")
+            with tqdm(total=len(eval_qas), desc=f"  QA conv_{conv_idx}", unit="q") as pbar:
+                for future in as_completed(futures):
+                    try:
+                        qa_results_for_conv.append(future.result())
+                    except Exception as e:
+                        logger.error(f"  QA failed: {e}")
+                    pbar.update(1)
 
         qa_results_for_conv.sort(key=lambda x: x["question_idx"])
         for r in qa_results_for_conv:

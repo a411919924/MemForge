@@ -4,7 +4,7 @@
 # Used for fact extraction and L0 summary generation
 ingestion_llm:
   provider: openrouter
-  model: google/gemini-3-flash-preview
+  model: xiaomi/mimo-v2-pro
   api_key_env: OPENROUTER_API_KEY
 
 # ── QA LLM ───────────────────────────────────────────────────
