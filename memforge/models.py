@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import uuid
 from dataclasses import dataclass, field
+from functools import partial
 from datetime import datetime
 from enum import Enum
 from typing import Any
@@ -40,7 +41,7 @@ class TemporalInfo:
 @dataclass
 class AtomicFact:
     """A single, self-contained, atomic memory unit."""
-    id: str = field(default_factory=lambda: str(uuid.uuid7()))
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     content: str = ""                        # Full self-contained fact
     l0_abstract: str = ""                    # ~20 token summary
     fact_type: FactType = FactType.SEMANTIC
