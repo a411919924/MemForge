@@ -158,19 +158,22 @@ def run_memforge(
         observation_date = get_observation_date(conv)
         logger.info(f"  {len(messages)} messages, observation_date={observation_date}")
 
-        # Create fresh MemForge per conversation
+        # Create or reuse MemForge per conversation
         db_path = output_dir / f"conv_{conv_idx}.db"
-        if db_path.exists():
-            db_path.unlink()
         mf = MemForge(db_path=str(db_path), preset=preset, config_path=config_path)
 
-        # Ingest
-        t0 = time.time()
-        facts = mf.add(messages, session_id=f"conv_{conv_idx}", observation_date=observation_date)
-        ingest_time = time.time() - t0
-        total_ingest_time += ingest_time
-        total_facts += len(facts)
-        logger.info(f"  Ingested {len(facts)} facts in {ingest_time:.1f}s")
+        # Ingest (skip if DB already has facts — reuse previous run)
+        existing_count = mf.storage.count_facts()
+        if existing_count > 0:
+            total_facts += existing_count
+            logger.info(f"  Reusing existing DB with {existing_count} facts (skipping ingestion)")
+        else:
+            t0 = time.time()
+            facts = mf.add(messages, session_id=f"conv_{conv_idx}", observation_date=observation_date)
+            ingest_time = time.time() - t0
+            total_ingest_time += ingest_time
+            total_facts += len(facts)
+            logger.info(f"  Ingested {len(facts)} facts in {ingest_time:.1f}s")
 
         # Answer questions (parallelized)
         def answer_one_qa(qa_idx_qa):
