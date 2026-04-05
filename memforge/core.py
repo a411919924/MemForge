@@ -1,13 +1,39 @@
-"""MemForge: Main entry point."""
+"""MemForge: Main entry point.
+
+Usage:
+    # With preset (easiest)
+    mf = MemForge(preset="openrouter")
+    mf = MemForge(preset="anthropic")
+    mf = MemForge(preset="google")
+    mf = MemForge(preset="ollama")
+
+    # With explicit config
+    from memforge.providers import ProviderConfig
+    mf = MemForge(
+        llm_config=ProviderConfig(provider="openrouter", model="anthropic/claude-sonnet-4-6"),
+        embedding_config=ProviderConfig(provider="openrouter", model="openai/text-embedding-3-small"),
+    )
+
+    # Use it
+    mf.add([{"role": "user", "content": "I prefer dark mode"}])
+    results = mf.search("user preferences")
+"""
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
-from memforge.ingestion.fact_extractor import CloudFactExtractor
+from memforge.ingestion.fact_extractor import FactExtractor
 from memforge.ingestion.pipeline import IngestionPipeline
 from memforge.models import AtomicFact, Message, ScoredFact
+from memforge.providers import (
+    BaseEmbeddingClient,
+    BaseLLMClient,
+    ProviderConfig,
+    create_embedding,
+    create_llm,
+    get_preset,
+)
 from memforge.retrieval.engine import RetrievalEngine
 from memforge.storage.engine import StorageEngine
 
@@ -20,42 +46,53 @@ class MemForge:
     def __init__(
         self,
         db_path: str = "~/.memforge/memforge.db",
-        llm_model: str = "gpt-4.1-mini",
-        embedding_model: str = "text-embedding-3-small",
+        # Option 1: Use a preset
+        preset: str | None = None,
+        # Option 2: Explicit provider configs
+        llm_config: ProviderConfig | None = None,
+        embedding_config: ProviderConfig | None = None,
+        # Option 3: Pre-built clients (for advanced use / testing)
+        llm: BaseLLMClient | None = None,
+        embedding: BaseEmbeddingClient | None = None,
+        # Embedding dimensions (for vector index)
         embedding_dim: int = 768,
-        api_key: str | None = None,
-        base_url: str | None = None,
     ):
-        from openai import OpenAI
+        # Resolve provider configs
+        if preset:
+            preset_configs = get_preset(preset)
+            llm_config = llm_config or preset_configs["llm"]
+            embedding_config = embedding_config or preset_configs["embedding"]
 
-        # Shared clients
-        client_kwargs = {}
-        if api_key:
-            client_kwargs["api_key"] = api_key
-        if base_url:
-            client_kwargs["base_url"] = base_url
-        self._openai = OpenAI(**client_kwargs)
+        # Build clients
+        if llm is None:
+            if llm_config is None:
+                llm_config = ProviderConfig(provider="openai", model="gpt-4.1-mini")
+            llm = create_llm(llm_config)
+
+        if embedding is None:
+            if embedding_config is None:
+                embedding_config = ProviderConfig(provider="openai", model="text-embedding-3-small")
+            embedding = create_embedding(embedding_config, dimensions=embedding_dim)
+
+        self._llm = llm
+        self._embedding = embedding
 
         # Storage
         self.storage = StorageEngine(db_path)
         self.storage.connect()
 
         # Ingestion
-        extractor = CloudFactExtractor(model=llm_model, api_key=api_key, base_url=base_url)
+        extractor = FactExtractor(llm=llm)
         self.ingestion = IngestionPipeline(
             storage=self.storage,
             extractor=extractor,
-            embedding_client=self._openai,
-            embedding_model=embedding_model,
-            embedding_dim=embedding_dim,
+            embedding=embedding,
         )
 
         # Retrieval
         self.retrieval = RetrievalEngine(
             storage=self.storage,
-            embedding_client=self._openai,
-            embedding_model=embedding_model,
-            embedding_dim=embedding_dim,
+            embedding=embedding,
         )
 
     def add(
@@ -74,7 +111,6 @@ class MemForge:
         Returns:
             List of stored AtomicFact objects.
         """
-        # Normalize to Message objects
         msgs = []
         for m in messages:
             if isinstance(m, Message):

@@ -6,9 +6,8 @@ import logging
 import re
 from collections import defaultdict
 
-from openai import OpenAI
-
 from memforge.models import ScoredFact
+from memforge.providers import BaseEmbeddingClient
 from memforge.storage.engine import StorageEngine
 
 logger = logging.getLogger(__name__)
@@ -41,14 +40,10 @@ class RetrievalEngine:
     def __init__(
         self,
         storage: StorageEngine,
-        embedding_client: OpenAI | None = None,
-        embedding_model: str = "text-embedding-3-small",
-        embedding_dim: int = 768,
+        embedding: BaseEmbeddingClient,
     ):
         self.storage = storage
-        self.embedding_client = embedding_client or OpenAI()
-        self.embedding_model = embedding_model
-        self.embedding_dim = embedding_dim
+        self.embedding = embedding
 
     def search(
         self,
@@ -67,7 +62,7 @@ class RetrievalEngine:
 
         # Channel 1: Semantic search
         query_embedding = self._embed_query(query)
-        if query_embedding:
+        if query_embedding is not None:
             semantic_results = self.storage.search_vector(query_embedding, limit=25)
         else:
             semantic_results = []
@@ -144,12 +139,7 @@ class RetrievalEngine:
     def _embed_query(self, query: str) -> list[float] | None:
         """Generate embedding for query."""
         try:
-            response = self.embedding_client.embeddings.create(
-                model=self.embedding_model,
-                input=query,
-                dimensions=self.embedding_dim,
-            )
-            return response.data[0].embedding
+            return self.embedding.embed_query(query)
         except Exception as e:
             logger.error(f"Query embedding failed: {e}")
             return None

@@ -12,15 +12,12 @@ Implements the full write pipeline:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 from datetime import datetime
 
-import numpy as np
-from openai import OpenAI
-
-from memforge.ingestion.fact_extractor import CloudFactExtractor
+from memforge.ingestion.fact_extractor import FactExtractor
 from memforge.models import AtomicFact, ConflictAction, ConflictResult, Message
+from memforge.providers import BaseEmbeddingClient
 from memforge.storage.engine import StorageEngine
 
 logger = logging.getLogger(__name__)
@@ -32,19 +29,15 @@ class IngestionPipeline:
     def __init__(
         self,
         storage: StorageEngine,
-        extractor: CloudFactExtractor | None = None,
-        embedding_client: OpenAI | None = None,
-        embedding_model: str = "text-embedding-3-small",
-        embedding_dim: int = 768,
+        extractor: FactExtractor,
+        embedding: BaseEmbeddingClient,
         window_size: int = 40,
         window_overlap: int = 2,
         dedup_threshold: float = 0.85,
     ):
         self.storage = storage
-        self.extractor = extractor or CloudFactExtractor()
-        self.embedding_client = embedding_client or OpenAI()
-        self.embedding_model = embedding_model
-        self.embedding_dim = embedding_dim
+        self.extractor = extractor
+        self.embedding = embedding
         self.window_size = window_size
         self.window_overlap = window_overlap
         self.dedup_threshold = dedup_threshold
@@ -130,25 +123,13 @@ class IngestionPipeline:
         if not texts:
             return facts
 
-        # Batch embed (API supports up to 2048 inputs)
-        batch_size = 512
-        all_embeddings = []
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
-            try:
-                response = self.embedding_client.embeddings.create(
-                    model=self.embedding_model,
-                    input=batch,
-                    dimensions=self.embedding_dim,
-                )
-                all_embeddings.extend([d.embedding for d in response.data])
-            except Exception as e:
-                logger.error(f"Embedding batch {i} failed: {e}")
-                # Fill with None for failed batch
-                all_embeddings.extend([None] * len(batch))
+        try:
+            embeddings = self.embedding.embed(texts)
+            for fact, emb in zip(facts, embeddings):
+                fact.embedding = emb
+        except Exception as e:
+            logger.error(f"Embedding failed: {e}")
 
-        for fact, emb in zip(facts, all_embeddings):
-            fact.embedding = emb
         return facts
 
     def _dedup_and_resolve(self, facts: list[AtomicFact]) -> list[AtomicFact]:

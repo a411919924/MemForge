@@ -12,6 +12,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+anthropic = [
+    "anthropic>=0.40.0",
+]
+google = [
+    "google-genai>=1.0.0",
+]
 eval = [
     "datasets>=3.0.0",
     "rouge-score>=0.1.2",
@@ -23,6 +29,9 @@ local = [
 ]
 mcp = [
     "mcp>=1.0.0",
+]
+all = [
+    "memforge[anthropic,google,eval,local,mcp]",
 ]
 dev = [
     "pytest>=8.0.0",

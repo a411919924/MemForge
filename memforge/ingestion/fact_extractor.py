@@ -1,7 +1,7 @@
 """Fact extraction from conversation messages — the core innovation of MemForge.
 
 Supports three modes:
-- Mode C (cloud): GPT-4.1-mini / Claude for highest quality extraction
+- Mode C (cloud): GPT-4.1-mini / Claude / Gemini / OpenRouter for highest quality extraction
 - Mode B (local): Small local LLM (Qwen3-1.7B) — future, not implemented yet
 - Mode A (zero):  Rule-based extraction — future, not implemented yet
 """
@@ -12,9 +12,8 @@ import json
 import logging
 from datetime import datetime
 
-from openai import OpenAI
-
 from memforge.models import AtomicFact, FactType, Message, TemporalInfo
+from memforge.providers import BaseLLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -70,22 +69,11 @@ Fact: {content}
 Summary:"""
 
 
-class CloudFactExtractor:
-    """Mode C: Cloud LLM-based fact extraction (highest quality)."""
+class FactExtractor:
+    """LLM-based fact extraction — works with any provider via BaseLLMClient."""
 
-    def __init__(
-        self,
-        model: str = "gpt-4.1-mini",
-        api_key: str | None = None,
-        base_url: str | None = None,
-    ):
-        kwargs = {}
-        if api_key:
-            kwargs["api_key"] = api_key
-        if base_url:
-            kwargs["base_url"] = base_url
-        self.client = OpenAI(**kwargs)
-        self.model = model
+    def __init__(self, llm: BaseLLMClient):
+        self.llm = llm
 
     def extract(
         self,
@@ -117,13 +105,11 @@ class CloudFactExtractor:
         )
 
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
+            content = self.llm.chat(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                response_format={"type": "json_object"} if "gpt" in self.model else None,
+                max_tokens=4096,
             )
-            content = response.choices[0].message.content.strip()
             facts_data = self._parse_response(content)
         except Exception as e:
             logger.error(f"Fact extraction failed: {e}")
@@ -160,17 +146,15 @@ class CloudFactExtractor:
             if fact.l0_abstract:
                 continue
             try:
-                response = self.client.chat.completions.create(
-                    model=self.model,
+                fact.l0_abstract = self.llm.chat(
                     messages=[{"role": "user", "content": L0_PROMPT.format(content=fact.content)}],
                     temperature=0.0,
                     max_tokens=50,
                 )
-                fact.l0_abstract = response.choices[0].message.content.strip()
             except Exception as e:
                 logger.warning(f"L0 generation failed for fact {fact.id}: {e}")
                 # Fallback: truncate content
-                fact.l0_abstract = fact.content[:80] + "..." if len(fact.content) > 80 else fact.content
+                fact.l0_abstract = fact.content[:80] + ("..." if len(fact.content) > 80 else "")
         return facts
 
     @staticmethod
@@ -181,6 +165,7 @@ class CloudFactExtractor:
             content = content.split("\n", 1)[1]
             if content.endswith("```"):
                 content = content.rsplit("```", 1)[0]
+        content = content.strip()
 
         parsed = json.loads(content)
 
